@@ -218,7 +218,8 @@ class Downsample(nn.Module):
         return x
 
 
-class Upsample(nn.Module):
+class UpsampleAA(nn.Module):
+    """Anti-aliased upsample: bilinear + blur."""
     def __init__(self, channels, filt_size=3, stride=2, pad_type='reflect'):
         super().__init__()
         self.stride = stride
@@ -309,7 +310,13 @@ class ResnetBlock(nn.Module):
         return x + self.conv_block(x)
 
 
-class ResnetGenerator(nn.Module):
+class ResnetUNetGenerator(nn.Module):
+    """
+    U-Net style generator:
+    - Encoder: c7s1-64 -> d128 -> d256
+    - Bottleneck: 9 ResNet blocks at 256 channels
+    - Decoder: up256->128 with skip from 128, up128->64 with skip from 64
+    """
     def __init__(self, input_nc, output_nc, ngf=64,
                  norm_layer=nn.InstanceNorm2d,
                  use_dropout=False, n_blocks=9,
@@ -322,91 +329,109 @@ class ResnetGenerator(nn.Module):
         else:
             use_bias = (norm_layer == nn.InstanceNorm2d)
 
-        model = []
-        # Initial 7x7 convolution
-        model += [
+        # Initial conv: c7s1-64
+        self.inc = nn.Sequential(
             nn.ReflectionPad2d(3),
             nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),
             norm_layer(ngf),
             nn.ReLU(True),
-        ]
+        )
 
-        # Downsampling (2x)
-        n_downsampling = 2
-        mult = 1
-        for i in range(n_downsampling):
-            mult = 2 ** i
-            if no_antialias:
-                model += [
-                    nn.Conv2d(ngf * mult, ngf * mult * 2,
-                              kernel_size=3, stride=2, padding=1, bias=use_bias),
-                    norm_layer(ngf * mult * 2),
-                    nn.ReLU(True),
-                ]
-            else:
-                model += [
-                    nn.Conv2d(ngf * mult, ngf * mult * 2,
-                              kernel_size=3, stride=1, padding=1, bias=use_bias),
-                    norm_layer(ngf * mult * 2),
-                    nn.ReLU(True),
-                    Downsample(ngf * mult * 2),
-                ]
+        # Down 1: 64 -> 128, /2
+        stride_d = 1 if not no_antialias else 2
+        self.down1 = nn.Sequential(
+            nn.Conv2d(ngf, ngf * 2, kernel_size=3, stride=stride_d, padding=1, bias=use_bias),
+            norm_layer(ngf * 2),
+            nn.ReLU(True),
+        )
+        self.down1_down = None if no_antialias else Downsample(ngf * 2)
 
-        # ResNet blocks
-        mult = 2 ** n_downsampling
+        # Down 2: 128 -> 256, /2 again
+        self.down2 = nn.Sequential(
+            nn.Conv2d(ngf * 2, ngf * 4, kernel_size=3, stride=stride_d, padding=1, bias=use_bias),
+            norm_layer(ngf * 4),
+            nn.ReLU(True),
+        )
+        self.down2_down = None if no_antialias else Downsample(ngf * 4)
+
+        # ResNet blocks (bottleneck) at 256 channels
+        blocks = []
         for _ in range(n_blocks):
-            model += [
-                ResnetBlock(ngf * mult, padding_type, norm_layer, use_dropout, use_bias)
-            ]
+            blocks.append(
+                ResnetBlock(ngf * 4, padding_type, norm_layer, use_dropout, use_bias)
+            )
+        self.resblocks = nn.Sequential(*blocks)
 
-        # Upsampling (2x)
-        for i in range(n_downsampling):
-            mult = 2 ** (n_downsampling - i)
-            if no_antialias_up:
-                model += [
-                    nn.ConvTranspose2d(
-                        ngf * mult, int(ngf * mult / 2),
-                        kernel_size=3, stride=2,
-                        padding=1, output_padding=1,
-                        bias=use_bias,
-                    ),
-                    norm_layer(int(ngf * mult / 2)),
-                    nn.ReLU(True),
-                ]
-            else:
-                model += [
-                    Upsample(ngf * mult),
-                    nn.Conv2d(
-                        ngf * mult, int(ngf * mult / 2),
-                        kernel_size=3, stride=1, padding=1, bias=use_bias,
-                    ),
-                    norm_layer(int(ngf * mult / 2)),
-                    nn.ReLU(True),
-                ]
+        # Up 1: 256 -> 256 (upsample), then concat with 128, then conv to 128
+        if no_antialias_up:
+            self.up1_up = nn.ConvTranspose2d(
+                ngf * 4, ngf * 4,
+                kernel_size=3, stride=2, padding=1, output_padding=1, bias=use_bias
+            )
+        else:
+            self.up1_up = UpsampleAA(ngf * 4)
 
-        # Final output layer
-        model += [
+        self.up1_conv = nn.Sequential(
+            nn.Conv2d(ngf * 4 + ngf * 2, ngf * 2, kernel_size=3, stride=1, padding=1, bias=use_bias),
+            norm_layer(ngf * 2),
+            nn.ReLU(True),
+        )
+
+        # Up 2: 128 -> 128 (upsample), then concat with 64, then conv to 64
+        if no_antialias_up:
+            self.up2_up = nn.ConvTranspose2d(
+                ngf * 2, ngf * 2,
+                kernel_size=3, stride=2, padding=1, output_padding=1, bias=use_bias
+            )
+        else:
+            self.up2_up = UpsampleAA(ngf * 2)
+
+        self.up2_conv = nn.Sequential(
+            nn.Conv2d(ngf * 2 + ngf, ngf, kernel_size=3, stride=1, padding=1, bias=use_bias),
+            norm_layer(ngf),
+            nn.ReLU(True),
+        )
+
+        # Final output conv: c7s1-3 + tanh
+        self.outc = nn.Sequential(
             nn.ReflectionPad2d(3),
             nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0),
             nn.Tanh(),
-        ]
-
-        self.model = nn.Sequential(*model)
+        )
 
     def forward(self, x, layers=None, encode_only=False):
-        if layers is None or len(layers) == 0:
-            out = self.model(x)
-            return out, None
+        # We ignore layers/encode_only for simplicity; keep API compatible.
+        x0 = self.inc(x)           # (B, 64, H, W)
+        x1 = self.down1(x0)        # (B, 128, H/2, W/2) or H, if no_antialias first
+        if self.down1_down is not None:
+            x1 = self.down1_down(x1)  # (B, 128, H/2, W/2)
 
-        feat = x
-        feats = []
-        for layer_id, layer in enumerate(self.model):
-            feat = layer(feat)
-            if layer_id in layers:
-                feats.append(feat)
-            if layer_id == layers[-1] and encode_only:
-                return None, feats
-        return feat, feats
+        x2 = self.down2(x1)        # (B, 256, H/4, W/4) or etc.
+        if self.down2_down is not None:
+            x2 = self.down2_down(x2)  # (B, 256, H/4, W/4)
+
+        x3 = self.resblocks(x2)    # bottleneck: (B, 256, H/4, W/4)
+
+        y = self.up1_up(x3)        # (B, 256, H/2, W/2)
+        # skip from x1
+        if y.shape[-2:] != x1.shape[-2:]:
+            y = F.interpolate(y, size=x1.shape[-2:], mode='bilinear', align_corners=True)
+        y = torch.cat([y, x1], dim=1)   # (B, 256+128, H/2, W/2)
+        y = self.up1_conv(y)            # (B, 128, H/2, W/2)
+
+        y = self.up2_up(y)              # (B, 128, H, W)
+        # skip from x0
+        if y.shape[-2:] != x0.shape[-2:]:
+            y = F.interpolate(y, size=x0.shape[-2:], mode='bilinear', align_corners=True)
+        y = torch.cat([y, x0], dim=1)   # (B, 128+64, H, W)
+        y = self.up2_conv(y)            # (B, 64, H, W)
+
+        out = self.outc(y)              # (B, 3, H, W)
+        if layers is None or len(layers) == 0 or not encode_only:
+            return out, None
+        else:
+            # Not used in this implementation
+            return out, None
 
 
 # =========================================================
@@ -512,7 +537,7 @@ class IRColorizationModel(nn.Module):
     def __init__(self, cfg: Config):
         super().__init__()
         norm_layer = get_norm_layer(cfg.norm)
-        self.netG = ResnetGenerator(
+        self.netG = ResnetUNetGenerator(
             cfg.input_nc, cfg.output_nc, cfg.ngf,
             norm_layer=norm_layer,
             use_dropout=False,
