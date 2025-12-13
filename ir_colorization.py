@@ -31,7 +31,7 @@ except ImportError:
 class Config:
     def __init__(self):
         # "train"  => train on KAIST IR→RGB pairs
-        # "test"   => colorize IR images from input_dir
+        # "test"   => colorize IR images from input_dir and compute metrics
         self.mode = "test"   # "train" or "test"
 
         # Device
@@ -78,7 +78,8 @@ class Config:
         # Optionally start training with a pretrained generator
         self.init_G_weights = None  # e.g., r"./pretrained_netG.pth"
 
-        # ---------- TEST (INFERENCE) ----------
+        # ---------- TEST (INFERENCE + METRICS) ----------
+        # input_dir should point to an "lwir" folder; visible GT is assumed to sit next to it
         self.input_dir = r"kaist-dataset\versions\1\set01\V000\lwir"
         self.output_dir = "./results"
         self.test_G_weights = r"./checkpoints_kaist/netG_best.pth"  # use best model by default
@@ -256,7 +257,7 @@ class UpsampleAA(nn.Module):
 
 
 # =========================================================
-# 3) ResNet Generator (IR-colorization / CUT-style)
+# 3) ResNet Block
 # =========================================================
 
 class ResnetBlock(nn.Module):
@@ -309,6 +310,10 @@ class ResnetBlock(nn.Module):
     def forward(self, x):
         return x + self.conv_block(x)
 
+
+# =========================================================
+# 4) U-Net style ResNet Generator (IR-colorization / CUT-style)
+# =========================================================
 
 class ResnetUNetGenerator(nn.Module):
     """
@@ -435,7 +440,7 @@ class ResnetUNetGenerator(nn.Module):
 
 
 # =========================================================
-# 4) PatchGAN Discriminator
+# 5) PatchGAN Discriminator
 # =========================================================
 
 class NLayerDiscriminator(nn.Module):
@@ -562,7 +567,7 @@ class IRColorizationModel(nn.Module):
 
 
 # =========================================================
-# 6) Inference helpers
+# 8) Inference helpers
 # =========================================================
 
 def load_ir_image(path, img_size=None):
@@ -624,7 +629,7 @@ def collect_images(input_dir):
 
 
 # =========================================================
-# 7) KAIST Dataset (Vxxx/lwir, Vxxx/visible)
+# 9) KAIST Dataset (Vxxx/lwir, Vxxx/visible)
 # =========================================================
 
 class KAISTPairDataset(Dataset):
@@ -657,6 +662,7 @@ class KAISTPairDataset(Dataset):
             seq_dirs = [root]
         else:
             # Subfolders: V000, V001, ...
+
             seq_dirs = [
                 os.path.join(root, d)
                 for d in sorted(os.listdir(root))
@@ -731,6 +737,7 @@ class KAISTPairDataset(Dataset):
         ir = self._read_ir(self.ir_paths[idx])
         rgb = self._read_rgb(self.rgb_paths[idx])
 
+        # Simple geometric augmentation: horizontal flip
         if self.augment and random.random() < 0.5:
             ir = np.fliplr(ir).copy()
             rgb = np.fliplr(rgb).copy()
@@ -745,7 +752,7 @@ class KAISTPairDataset(Dataset):
 
 
 # =========================================================
-# 8) Test (inference) mode
+# 10) Test (inference) mode + metrics
 # =========================================================
 
 def compute_metrics(pred_01, gt_01):
@@ -933,7 +940,7 @@ def run_test(cfg: Config):
 
 
 # =========================================================
-# 9) Validation (L1 only)
+# 11) Validation (L1 only)
 # =========================================================
 
 def validate_kaist(model: IRColorizationModel, val_loader, device):
@@ -954,7 +961,7 @@ def validate_kaist(model: IRColorizationModel, val_loader, device):
 
 
 # =========================================================
-# 10) Train loop (Pix2Pix-style LSGAN + L1)
+# 12) Train loop (Pix2Pix-style LSGAN + L1 + Perceptual + TV)
 # =========================================================
 
 def train_kaist(cfg: Config):
@@ -1120,7 +1127,7 @@ def train_kaist(cfg: Config):
 
 
 # =========================================================
-# 11) main
+# 13) main
 # =========================================================
 
 def main():
