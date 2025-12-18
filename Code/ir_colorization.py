@@ -68,6 +68,10 @@ class Config:
         self.no_antialias = False
         self.no_antialias_up = False
 
+        self.save_dir = r".\Weights\trained_w_night\checkpoints_kaist"
+        self.output_dir = r".\results"
+        self.test_G_weights = r".\Weights\trained_w_night\checkpoints_kaist\netG_best.pth"
+
         # ---------- TRAIN (KAIST) ----------
         # Training sets: set00, set01, set03, set04
         self.train_roots = [
@@ -108,13 +112,13 @@ class Config:
         self.lr_decay_start_epoch = 40
 
         # Optional: initialize generator weights from a checkpoint before training begins
-        self.init_G_weights = None  # e.g. r"./some_generator_checkpoint.pth"
+        self.init_G_weights = None  # e.g., r"./pretrained_netG.pth"
 
         # ---------- TEST (INFERENCE + METRICS) ----------
         # Test sets: set02, set05
         self.test_roots = [
             r"kaist-dataset\versions\1\set02",
-            r"kaist-dataset\versions\1\set05",
+            r"kaist-dataset\versions\1\set05"
         ]
 
         # Save side-by-side comparison images (IR | Pred | GT if available)
@@ -130,13 +134,6 @@ class Config:
         self.best50_copy_collages = True
         self.best50_preds_subdir = "colored"
         self.best50_collages_subdir = "collages"
-
-        # Legacy single-folder inference input (kept as a fallback if test_roots is empty)
-        self.input_dir = r"kaist-dataset\versions\1\set01\V000\lwir"
-
-        # Output folders
-        self.output_dir = "./results"
-        self.test_G_weights = r"./checkpoints_kaist/netG_best.pth"  # default model for inference
 
         # Top-K selection size
         self.topk = 50
@@ -997,7 +994,7 @@ def save_comparison_image(cfg, out_rel, collage_u8_hwc):
 
 
 # =========================================================
-# 9) KAIST paired dataset loader
+# 9) KAIST Dataset (Vxxx/lwir, Vxxx/visible)
 # =========================================================
 
 class KAISTPairDataset(Dataset):
@@ -1418,7 +1415,7 @@ def run_test(cfg: Config):
                 thickness=getattr(cfg, "comparison_thickness", 2),
                 metrics_text=metrics_text
             )
-            _ = save_comparison_image(cfg, out_rel, collage)
+            cmp_path = save_comparison_image(cfg, out_rel, collage)
 
         # Periodic progress logging
         if idx % 50 == 0 or idx == len(entries):
@@ -1716,7 +1713,11 @@ def main():
       - Runs train or test depending on cfg.mode
     """
     cfg = Config()
+
     print("Config mode:", cfg.mode)
+    print("SAVE_DIR:", cfg.save_dir)
+    print("OUTPUT_DIR:", cfg.output_dir)
+    print("TEST_G_WEIGHTS:", cfg.test_G_weights)
 
     if cfg.mode == "train":
         train_kaist(cfg)
