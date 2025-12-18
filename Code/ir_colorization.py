@@ -92,7 +92,7 @@ class Config:
         self.beta1 = 0.5
         self.beta2 = 0.999
 
-        # Loss weights (Pix2Pix-style)
+        # Reconstruction / perceptual / regularization loss weights
         self.lambda_L1 = 30.0          # pixel L1 term
         self.lambda_perc = 30.0         # VGG perceptual term
         self.lambda_tv = 1e-4           # total variation term
@@ -126,7 +126,7 @@ class Config:
         # Save side-by-side comparison images (IR | Pred | GT if available)
         self.save_comparisons = True
         self.comparison_dirname = "Comparisons"
-        self.comparison_add_text = True
+        self.comparison_add_text = False
         self.comparison_pad = 8
         self.comparison_font_scale = 0.6
         self.comparison_thickness = 2
@@ -140,7 +140,6 @@ class Config:
         # Top-K selection size
         self.topk = 50
         self.best50_dirname = "Best_50_colored_images"
-
 
 # =========================================================
 # 1) Normalization and weight initialization helpers
