@@ -1,4 +1,4 @@
-# Infrared Image Colorization (LWIR → RGB) with GANs (PyTorch)
+# Color Anything
 
 This repository implements an end-to-end **thermal / infrared (LWIR) → visible (RGB)** image colorization pipeline using a **Pix2Pix-style conditional GAN** in **PyTorch**.  
 It is built to work with the **KAIST Multispectral Pedestrian Dataset** (paired `lwir/` and `visible/` frames).
