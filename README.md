@@ -15,6 +15,56 @@ The script supports two modes:
 - **`test`**: run inference on KAIST test sets, save outputs, compute metrics (if GT exists), optionally save collages, and export Top-K best results
 
 ---
+---
+
+## 📊 Metrics & Results
+
+Across the KAIST test splits, **Color Anything** provides the most consistent overall performance among the compared methods. In terms of average metrics (Table II), it yields the lowest reconstruction errors (**MAE/MSE**) and the highest perceptual quality (**PSNR/SSIM**), improving PSNR by **+0.17 dB** over **TIC-CGAN** and **+0.66 dB** over the **Naïve** baseline while also increasing SSIM. The best-case results (Table III) further highlight this gap, where Color Anything reaches **29.24 dB PSNR** and **0.89 SSIM**, indicating substantially improved colorization fidelity in favorable scenes. The ablation study (Table I) suggests that **training with both Day and Night data** generally improves robustness, with Night-only training being insufficient for daytime performance and Day-only training degrading night-time generalization. Table II and III are performed under day only training and day only testing. Best results are obtained in only day training condition by sacrificing the night cases.
+
+When ground-truth exists (`visible/<frame>` is found), test mode computes:
+- **MAE**
+- **MSE**
+- **PSNR**
+- **SSIM** *(requires scikit-image; otherwise `None`)*
+
+> Lower is better: **MAE, MSE**  
+> Higher is better: **PSNR, SSIM**
+
+# Table I: Summary of the ablation results
+
+- **Train(DN)**: Train with Day and Night.
+- **Train(D)**: Training with Day only.
+- **Train(N)**: Training with Night only.
+- **Test(DN)**: Test set with Day and Night.
+
+| Training   | Test  | Count  | MAE    | MSE    | PSNR (dB) | SSIM |
+|------------|-------|--------|--------|--------|-----------|------|
+| Train(DN)  | DN    | 10,785 | 0.1552 | 0.0541 |   13.58   | 0.42 |
+| Train(D)   | DN    | 10,785 | 0.1654 | 0.0609 |   13.07   | 0.41 |
+| Train(N)   | DN    | 10,785 | 0.2226 | 0.0992 |   10.46   | 0.30 |
+| Train(DN)  | Day   | 7,866  | 0.1459 | 0.0466 |   14.09   | 0.43 |
+| Train(D)   | Day   | 7,866  | 0.1453 | 0.0467 |   14.10   | 0.43 |
+| Train(N)   | Day   | 7,866  | 0.2391 | 0.1091 |   9.73    | 0.28 |
+| Train(DN)  | Night | 2,919  | 0.1803 | 0.0742 |   12.22   | 0.37 |
+| Train(D)   | Night | 2,919  | 0.2193 | 0.0993 |   10.28   | 0.34 |
+| Train(N)   | Night | 2,919  | 0.1783 | 0.0728 |   12.41   | 0.36 |
+
+# Table II: Average results of different methods
+
+| Method         | MAE    | MSE    | PSNR  | SSIM |
+|----------------|--------|--------|-------|------|
+| Naïve          | 0.1541 | 0.0528 | 13.44 | 0.36 |
+| TIC-CGAN       | 0.1547 | 0.0481 | 13.93 | 0.42 |
+| Color Anything | 0.1453 | 0.0466 | 14.10 | 0.43 |
+
+# Table III: Best results of different methods
+
+| Method         | MAE    | MSE    | PSNR  | SSIM |
+|----------------|--------|--------|-------|------|
+| Naïve          | 0.0392 | 0.0037 | 24.21 | 0.70 |
+| TIC-CGAN       | 0.0635 | 0.0100 | 19.93 | 0.65 |
+| Color Anything | 0.0198 | 0.0010 | 29.24 | 0.89 |
+
 
 ## ✨ Highlights
 
