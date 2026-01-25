@@ -15,7 +15,6 @@ The script supports two modes:
 - **`test`**: run inference on KAIST test sets, save outputs, compute metrics (if GT exists), optionally save collages, and export Top-K best results
 
 ---
----
 
 ## 📊 Metrics & Results
 
@@ -30,7 +29,7 @@ When ground-truth exists (`visible/<frame>` is found), test mode computes:
 > Lower is better: **MAE, MSE**  
 > Higher is better: **PSNR, SSIM**
 
-# Table I: Summary of the ablation results
+### Table I: Summary of the ablation results
 
 - **Train(DN)**: Train with Day and Night.
 - **Train(D)**: Training with Day only.
@@ -49,7 +48,7 @@ When ground-truth exists (`visible/<frame>` is found), test mode computes:
 | Train(D)   | Night | 2,919  | 0.2193 | 0.0993 |   10.28   | 0.34 |
 | Train(N)   | Night | 2,919  | 0.1783 | 0.0728 |   12.41   | 0.36 |
 
-# Table II: Average results of different methods
+### Table II: Average results of different methods
 
 | Method         | MAE    | MSE    | PSNR  | SSIM |
 |----------------|--------|--------|-------|------|
@@ -57,7 +56,7 @@ When ground-truth exists (`visible/<frame>` is found), test mode computes:
 | TIC-CGAN       | 0.1547 | 0.0481 | 13.93 | 0.42 |
 | Color Anything | 0.1453 | 0.0466 | 14.10 | 0.43 |
 
-# Table III: Best results of different methods
+### Table III: Best results of different methods
 
 | Method         | MAE    | MSE    | PSNR  | SSIM |
 |----------------|--------|--------|-------|------|
